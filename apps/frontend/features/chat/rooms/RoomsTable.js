@@ -1,10 +1,21 @@
 import React from 'react';
 import { LockIcon, GroupIcon } from '@vapor-ui/icons';
-import { Button, Text, VStack, HStack } from '@vapor-ui/core';
+import { Button, Text, VStack, HStack, Spinner } from '@vapor-ui/core';
 import * as Table from '@/components/Table';
 import { CONNECTION_STATUS } from './useServerConnection';
+import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 
-const RoomsTable = ({ rooms, connectionStatus, onJoinRoom }) => {
+
+const RoomsTable = ({
+  rooms,
+  connectionStatus,
+  onJoinRoom,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore = () => {},
+}) => {
+  const { sentinelRef } = useInfiniteScroll(onLoadMore, hasMore, loadingMore);
+  
   if (!rooms || rooms.length === 0) return null;
 
   return (
@@ -91,6 +102,16 @@ const RoomsTable = ({ rooms, connectionStatus, onJoinRoom }) => {
           ))}
         </Table.Body>
       </Table.Root>
+      {hasMore && (
+        <div ref={sentinelRef} style={{ padding: '12px', textAlign: 'center' }}>
+          {loadingMore && (
+            <HStack $css={{ gap: '$100', justifyContent: 'center' }}>
+              <Spinner size="sm" colorPalette="primary" aria-label="채팅방 더 불러오는 중" />
+              <Text typography="body3" foreground="hint-100">더 불러오는 중...</Text>
+            </HStack>
+          )}
+        </div>
+      )}
     </div>
   );
 };

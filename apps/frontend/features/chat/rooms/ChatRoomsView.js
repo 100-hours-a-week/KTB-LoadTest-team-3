@@ -45,8 +45,11 @@ export default function ChatRoomsView({ router }) {
     error,
     loading,
     refreshing,
+    loadingMore,
+    hasMore,
     joiningRoom,
     fetchRooms,
+    loadMoreRooms,
     refreshRooms,
     handleJoinRoom,
   } = useRoomList({
@@ -233,6 +236,9 @@ export default function ChatRoomsView({ router }) {
             rooms={rooms}
             connectionStatus={connectionStatus}
             onJoinRoom={handleJoinRoom}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onLoadMore={loadMoreRooms}
           />
         ) : !error && (
           <VStack
