@@ -77,10 +77,15 @@ public class RoomService {
         }
         Map<String, User> usersById = userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, u -> u));
+
+        List<String> roomIds = rooms.stream().map(Room::getId).toList();
+        Map<String, Integer> recentMessageCounts = recentMessageCounter.countRecentMessagesForRooms(roomIds);
+
         List<RoomResponse> result = new ArrayList<>();
 
         for (Room room : rooms) {
-            result.add(mapToRoomResponse(room, currentUserName, usersById));
+            int recentMessageCount = recentMessageCounts.getOrDefault(room.getId(), 0);
+            result.add(mapToRoomResponse(room, currentUserName, usersById, recentMessageCount));
         }
 
         return result;
@@ -213,6 +218,12 @@ public class RoomService {
 
     private RoomResponse mapToRoomResponse(Room room, String name, Map<String, User> usersById) {
         if (room == null) return null;
+        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
+        return mapToRoomResponse(room, name, usersById, recentMessageCount);
+    }
+
+    private RoomResponse mapToRoomResponse(Room room, String name, Map<String, User> usersById, int recentMessageCount) {
+        if (room == null) return null;
 
         User creator = room.getCreator() != null ? usersById.get(room.getCreator()) : null;
 
@@ -220,8 +231,6 @@ public class RoomService {
                 .map(usersById::get)
                 .filter(java.util.Objects::nonNull)
                 .toList();
-
-        int recentMessageCount = recentMessageCounter.countRecentMessages(room.getId());
 
         return RoomResponse.builder()
             .id(room.getId())
