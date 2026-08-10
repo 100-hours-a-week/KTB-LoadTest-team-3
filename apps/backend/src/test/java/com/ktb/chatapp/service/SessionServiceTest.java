@@ -1,6 +1,13 @@
 package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.config.MongoTestContainer;
+import com.ktb.chatapp.model.Session;
+import com.ktb.chatapp.repository.SessionRepository;
+import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -27,6 +34,9 @@ class SessionServiceTest {
 
     @Autowired
     private SessionService sessionService;
+
+    @Autowired
+    private SessionRepository sessionRepository;
 
     private static final String TEST_USER_ID = "test-user-123";
     private static final String TEST_USER_ID_2 = "test-user-456";
@@ -182,6 +192,79 @@ class SessionServiceTest {
         // Then
         assertTrue(result.isValid());
         assertThat(result.getSession().getLastActivity()).isGreaterThan(initialLastActivity);
+        Session stored = sessionRepository.findByUserId(TEST_USER_ID).orElseThrow();
+        assertThat(stored.getLastActivity()).isEqualTo(result.getSession().getLastActivity());
+        assertThat(stored.getExpiresAt()).isAfter(Instant.now());
+    }
+
+    @Test
+    @DisplayName("잘못된 sessionId는 세션 활동과 만료 시간을 갱신하지 않는다")
+    void validateSession_InvalidSessionId_DoesNotTouchSession() {
+        SessionCreationResult created = sessionService.createSession(TEST_USER_ID, createTestMetadata());
+        Session before = sessionRepository.findByUserId(TEST_USER_ID).orElseThrow();
+
+        SessionValidationResult result = sessionService.validateSession(TEST_USER_ID, "wrong-session-id");
+        Session after = sessionRepository.findByUserId(TEST_USER_ID).orElseThrow();
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getError()).isEqualTo("INVALID_SESSION");
+        assertThat(after.getSessionId()).isEqualTo(created.getSessionId());
+        assertThat(after.getLastActivity()).isEqualTo(before.getLastActivity());
+        assertThat(after.getExpiresAt()).isEqualTo(before.getExpiresAt());
+    }
+
+    @Test
+    @DisplayName("만료 세션은 touch되지 않고 다시 살아나지 않는다")
+    void validateSession_ExpiredSession_IsRejectedAndNotRevived() {
+        SessionCreationResult created = sessionService.createSession(TEST_USER_ID, createTestMetadata());
+        Session expired = sessionRepository.findByUserId(TEST_USER_ID).orElseThrow();
+        expired.setLastActivity(Instant.now()
+                .minusSeconds(SessionService.SESSION_TTL_SEC + 1).toEpochMilli());
+        expired.setExpiresAt(Instant.now().plusSeconds(SessionService.SESSION_TTL_SEC));
+        sessionRepository.save(expired);
+
+        SessionValidationResult result = sessionService.validateSession(TEST_USER_ID, created.getSessionId());
+
+        assertThat(result.isValid()).isFalse();
+        assertThat(result.getError()).isEqualTo("SESSION_EXPIRED");
+        assertThat(sessionRepository.findByUserId(TEST_USER_ID)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("동일 세션 동시 검증은 lastActivity와 expiresAt을 축소하지 않는다")
+    void validateSession_ConcurrentRequests_AreAtomicAndMonotonic() throws Exception {
+        SessionCreationResult created = sessionService.createSession(TEST_USER_ID, createTestMetadata());
+        Session initial = sessionRepository.findByUserId(TEST_USER_ID).orElseThrow();
+        ExecutorService executor = Executors.newFixedThreadPool(12);
+        try {
+            List<Callable<SessionValidationResult>> tasks = java.util.stream.IntStream.range(0, 40)
+                    .mapToObj(ignored -> (Callable<SessionValidationResult>) () ->
+                            sessionService.validateSession(TEST_USER_ID, created.getSessionId()))
+                    .toList();
+            List<SessionValidationResult> results = executor.invokeAll(tasks).stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .toList();
+            Session stored = sessionRepository.findByUserId(TEST_USER_ID).orElseThrow();
+            long newestReturnedActivity = results.stream()
+                    .map(SessionValidationResult::getSession)
+                    .mapToLong(SessionData::getLastActivity)
+                    .max()
+                    .orElseThrow();
+
+            assertThat(results).allMatch(SessionValidationResult::isValid);
+            assertThat(stored.getSessionId()).isEqualTo(created.getSessionId());
+            assertThat(stored.getLastActivity()).isGreaterThanOrEqualTo(newestReturnedActivity);
+            assertThat(stored.getLastActivity()).isGreaterThanOrEqualTo(initial.getLastActivity());
+            assertThat(stored.getExpiresAt()).isAfterOrEqualTo(initial.getExpiresAt());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     // ============ 세션 활동 업데이트 테스트 ============

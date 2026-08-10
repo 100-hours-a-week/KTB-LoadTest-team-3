@@ -1,27 +1,25 @@
 package com.ktb.chatapp.service.ratelimit;
 
 import com.ktb.chatapp.model.RateLimit;
-import java.util.Optional;
+import java.time.Instant;
 
 /**
  * Data store interface for rate limit storage.
  * Provides operations for storing and retrieving rate limit data.
  */
 public interface RateLimitStore {
-    
+
     /**
-     * Find rate limit by client ID
+     * Atomically consumes one request when the current window has capacity.
      *
      * @param clientId the client identifier
-     * @return Optional containing the RateLimit if found, empty otherwise
+     * @param maxRequests maximum requests allowed in an active window
+     * @param now time used to decide whether the stored window has expired
+     * @param expiresAt expiration time for a newly created or reset window
+     * @return the decision and the current rate-limit document
      */
-    Optional<RateLimit> findByClientId(String clientId);
-    
-    /**
-     * Save or update rate limit
-     *
-     * @param rateLimit the rate limit to save
-     * @return the saved rate limit
-     */
-    RateLimit save(RateLimit rateLimit);
+    ConsumeResult consume(String clientId, int maxRequests, Instant now, Instant expiresAt);
+
+    record ConsumeResult(boolean allowed, RateLimit rateLimit) {
+    }
 }

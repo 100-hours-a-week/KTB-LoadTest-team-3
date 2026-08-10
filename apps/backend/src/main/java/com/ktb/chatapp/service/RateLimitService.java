@@ -2,6 +2,7 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.model.RateLimit;
 import com.ktb.chatapp.service.ratelimit.RateLimitStore;
+import com.ktb.chatapp.service.ratelimit.RateLimitStore.ConsumeResult;
 import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 import java.time.Instant;
@@ -49,15 +50,11 @@ public class RateLimitService {
         Instant expiresAt = now.plusSeconds(windowSeconds);
 
         try {
-            RateLimit rateLimit = rateLimitStore.findByClientId(actualClientId).orElse(null);
-            if (rateLimit != null && !rateLimit.getExpiresAt().isAfter(now)) {
-                rateLimit.setCount(0);
-                rateLimit.setExpiresAt(expiresAt);
-            }
+            ConsumeResult consumeResult = rateLimitStore.consume(
+                    actualClientId, maxRequests, now, expiresAt);
+            RateLimit rateLimit = consumeResult.rateLimit();
 
-            int currentCount = rateLimit != null ? rateLimit.getCount() : 0;
-
-            if (rateLimit != null && currentCount >= maxRequests) {
+            if (!consumeResult.allowed()) {
                 long retryAfterSeconds = Math.max(1L,
                     rateLimit.getExpiresAt().getEpochSecond() - nowEpochSeconds);
                 long resetEpochSeconds = rateLimit.getExpiresAt().getEpochSecond();
@@ -65,20 +62,7 @@ public class RateLimitService {
                         maxRequests, windowSeconds, resetEpochSeconds, retryAfterSeconds);
             }
 
-            // Create or update rate limit
-            if (rateLimit == null) {
-                rateLimit = RateLimit.builder()
-                        .clientId(actualClientId)
-                        .count(1)
-                        .expiresAt(expiresAt)
-                        .build();
-            } else {
-                rateLimit.setCount(currentCount + 1);
-            }
-            rateLimitStore.save(rateLimit);
-
-            int newCount = currentCount + 1;
-            int remaining = Math.max(0, maxRequests - newCount);
+            int remaining = Math.max(0, maxRequests - rateLimit.getCount());
             long ttlSeconds = Math.max(1L, rateLimit.getExpiresAt().getEpochSecond() - nowEpochSeconds);
             long resetEpochSeconds = rateLimit.getExpiresAt().getEpochSecond();
 

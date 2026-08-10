@@ -4,6 +4,7 @@ import com.corundumstudio.socketio.BroadcastOperations;
 import com.corundumstudio.socketio.SocketIOClient;
 import com.corundumstudio.socketio.SocketIOServer;
 import com.ktb.chatapp.dto.ChatMessageRequest;
+import com.ktb.chatapp.dto.MessageContent;
 import com.ktb.chatapp.dto.MessageResponse;
 import com.ktb.chatapp.model.Message;
 import com.ktb.chatapp.model.MessageType;
@@ -160,6 +161,7 @@ class ChatMessageHandlerTest {
         verify(client).sendEvent(eq(MESSAGE), payloadCaptor.capture());
         verify(roomOperations).sendEvent(eq(MESSAGE), any(MessageResponse.class));
         verify(roomActivityNotifier).notifyMessageStored("room-1");
+        verify(aiService).handleAIMentions(eq("room-1"), eq("user-1"), any(MessageContent.class));
         org.junit.jupiter.api.Assertions.assertEquals("message-1", payloadCaptor.getValue().getId());
         org.junit.jupiter.api.Assertions.assertEquals("hello", payloadCaptor.getValue().getContent());
     }

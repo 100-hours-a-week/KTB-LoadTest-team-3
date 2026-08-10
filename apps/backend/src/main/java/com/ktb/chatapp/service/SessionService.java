@@ -2,6 +2,8 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.model.Session;
 import com.ktb.chatapp.service.session.SessionStore;
+import com.ktb.chatapp.service.session.SessionStore.ValidateAndTouchResult;
+import com.ktb.chatapp.service.session.SessionStore.ValidationStatus;
 import java.time.Instant;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
@@ -74,32 +76,32 @@ public class SessionService {
                 return SessionValidationResult.invalid("INVALID_PARAMETERS", "유효하지 않은 세션 파라미터");
             }
 
-            Session session = sessionStore.findByUserId(userId).orElse(null);
-            
-            if (session == null) {
+            Instant now = Instant.now();
+            long nowEpochMillis = now.toEpochMilli();
+            ValidateAndTouchResult storeResult = sessionStore.validateAndTouch(
+                    userId,
+                    sessionId,
+                    nowEpochMillis - SESSION_TIMEOUT,
+                    nowEpochMillis,
+                    now.plusSeconds(SESSION_TTL_SEC));
+
+            if (storeResult.status() == ValidationStatus.NOT_FOUND) {
                 log.warn("No session found for userId: {}", userId);
                 return SessionValidationResult.invalid("INVALID_SESSION", "세션을 찾을 수 없습니다.");
             }
 
-            if (!sessionId.equals(session.getSessionId())) {
-                log.warn("Session ID mismatch for userId: {}. Provided: {}, Expected: {}", userId, sessionId, session.getSessionId());
+            if (storeResult.status() == ValidationStatus.SESSION_ID_MISMATCH) {
+                log.warn("Session ID mismatch for userId: {}. Provided: {}", userId, sessionId);
                 return SessionValidationResult.invalid("INVALID_SESSION", "잘못된 세션 ID입니다.");
             }
 
-            // Check if session has timed out
-            long now = Instant.now().toEpochMilli();
-            if (now - session.getLastActivity() > SESSION_TIMEOUT) {
+            if (storeResult.status() == ValidationStatus.EXPIRED) {
                 log.warn("Session timed out for userId: {}, sessionId: {}", userId, sessionId);
                 removeSession(userId, sessionId);
                 return SessionValidationResult.invalid("SESSION_EXPIRED", "세션이 만료되었습니다.");
             }
 
-            // Update last activity
-            session.setLastActivity(now);
-            session.setExpiresAt(Instant.now().plusSeconds(SESSION_TTL_SEC));
-            session = sessionStore.save(session);
-
-            SessionData sessionData = toSessionData(session);
+            SessionData sessionData = toSessionData(storeResult.session());
             return SessionValidationResult.valid(sessionData);
 
         } catch (Exception e) {
