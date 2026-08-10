@@ -7,8 +7,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.mongodb.core.index.CompoundIndex;
+import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -26,6 +29,9 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "messages")
+@CompoundIndexes({
+        @CompoundIndex(name = "room_timestamp_idx", def = "{'room': 1, 'timestamp': -1}")
+})
 public class Message {
 
     @Id
@@ -46,6 +52,7 @@ public class Message {
 
     // Mongo 문서 필드명 "file" 사용
     @Field("file")
+    @Indexed // findByFileId 조회 => 인덱스
     private String fileId;
 
     private AiType aiType;
