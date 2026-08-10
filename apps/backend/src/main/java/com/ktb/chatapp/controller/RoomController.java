@@ -26,6 +26,9 @@ import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -96,10 +99,14 @@ public class RoomController {
     })
     @GetMapping
     @RateLimit
-    public ResponseEntity<?> getAllRooms(Principal principal) {
+    public ResponseEntity<?> getAllRooms(
+            Principal principal,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size) {
 
         try {
-            RoomsResponse response = roomService.getAllRooms(principal.getName());
+            Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+            RoomsResponse response = roomService.getAllRooms(principal.getName(), pageable);
 
             // 캐시 설정
             return ResponseEntity.ok()
@@ -242,7 +249,7 @@ public class RoomController {
             }
 
             RoomResponse roomResponse = mapToRoomResponse(joinedRoom, principal.getName());
-            
+
             return ResponseEntity.ok(
                 Map.of(
                     "success", true,
@@ -272,15 +279,9 @@ public class RoomController {
             throw new RuntimeException("Creator not found for room " + room.getId());
         }
         UserResponse creatorSummary = UserResponse.from(creator);
-        List<UserResponse> participantSummaries = room.getParticipantIds()
+        List<UserResponse> participantSummaries = userRepository
+                .findAllById(room.getParticipantIds())
                 .stream()
-                .map(userRepository::findById).peek(optUser -> {
-                    if (optUser.isEmpty()) {
-                        log.warn("Participant not found: roomId={}, userId={}", room.getId(), optUser);
-                    }
-                })
-                .filter(Optional::isPresent)
-                .map(Optional::get)
                 .map(UserResponse::from)
                 .toList();
 

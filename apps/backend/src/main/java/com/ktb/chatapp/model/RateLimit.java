@@ -24,6 +24,9 @@ public class RateLimit {
 
     private int count;
 
+    /** Internal token used to identify whether the latest atomic consume was accepted. */
+    private String lastRequestId;
+
     @Indexed(expireAfter = "0s")
     private Instant expiresAt;
 }

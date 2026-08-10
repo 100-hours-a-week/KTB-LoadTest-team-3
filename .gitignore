@@ -1,0 +1,19 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# 의존성 (모든 워크스페이스 패키지 공통)
+node_modules/
+
+# 에디터
+.idea/
+.vscode/
+
+# 로그
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# 환경변수 (각 앱 .gitignore에서 더 구체적으로도 다룸)
+.env
+.env.local

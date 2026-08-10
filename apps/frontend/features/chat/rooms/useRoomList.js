@@ -2,6 +2,8 @@ import { useState, useCallback, useRef } from 'react';
 import axiosInstance from '@/services/axios';
 import { CONNECTION_STATUS } from './useServerConnection';
 
+const ROOM_PAGE_SIZE = 50; // 백엔드 룸컨트롤러 사이즈 기본값
+
 export const useRoomList = ({
   currentUser,
   router,
@@ -14,10 +16,13 @@ export const useRoomList = ({
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [joiningRoom, setJoiningRoom] = useState(false);
 
   const isLoadingRef = useRef(false);
+  const pageRef = useRef(0);
 
   const handleFetchError = useCallback((error) => {
     let errorMessage = '채팅방 목록을 불러오는데 실패했습니다.';
@@ -56,16 +61,16 @@ export const useRoomList = ({
     setConnectionStatus(CONNECTION_STATUS.ERROR);
   }, [isRetrying, setConnectionStatus]);
 
-  const loadRooms = useCallback(async () => {
+  const loadRoomsPage = useCallback(async (page, size) => {
     await attemptConnection();
 
-    const response = await axiosInstance.get('/api/rooms');
+    const response = await axiosInstance.get('/api/rooms', { params: { page, size } });
 
     if (!response?.data?.data) {
       throw new Error('INVALID_RESPONSE');
     }
 
-    setRooms(response.data.data);
+    return response.data; // {data, metadata} 반환
   }, [attemptConnection]);
 
   const fetchRooms = useCallback(async () => {
@@ -79,7 +84,10 @@ export const useRoomList = ({
       setLoading(true);
       setError(null);
 
-      await loadRooms();
+      const { data, metadata } = await loadRoomsPage(0, ROOM_PAGE_SIZE);
+      pageRef.current = 0;
+      setRooms(data);
+      setHasMore(Boolean(metadata?.hasMore));
 
       if (isInitialLoad) {
         setIsInitialLoad(false);
@@ -90,7 +98,32 @@ export const useRoomList = ({
       setLoading(false);
       isLoadingRef.current = false;
     }
-  }, [currentUser, isInitialLoad, loadRooms, handleFetchError]);
+  }, [currentUser, isInitialLoad, loadRoomsPage, handleFetchError]);
+
+
+  const loadMoreRooms = useCallback(async () => {
+    if (!currentUser?.token || isLoadingRef.current || !hasMore) {
+      return;
+    }
+    try {
+      isLoadingRef.current = true;
+      setLoadingMore(true);
+
+      const nextPage = pageRef.current + 1;
+      const { data, metadata } = await loadRoomsPage(nextPage, ROOM_PAGE_SIZE);
+      
+      pageRef.current = nextPage;
+      
+      setRooms((prev) => [...prev, ...data]);
+      setHasMore(Boolean(metadata?.hasMore));
+    } catch (error) {
+      handleFetchError(error);
+    } finally {
+      setLoadingMore(false);
+      isLoadingRef.current = false;
+    }
+  }, [currentUser, hasMore, loadRoomsPage, handleFetchError]);
+ 
 
   /**
    * 이미 그려진 목록을 유지한 채 다시 조회한다.
@@ -105,7 +138,11 @@ export const useRoomList = ({
       isLoadingRef.current = true;
       setRefreshing(true);
 
-      await loadRooms();
+      const size = Math.max(ROOM_PAGE_SIZE, (pageRef.current + 1) * ROOM_PAGE_SIZE);
+      const { data, metadata } = await loadRoomsPage(0, size);
+      pageRef.current = 0;
+      setRooms(data);
+      setHasMore(Boolean(metadata?.hasMore));
       setError(null);
 
       return true;
@@ -124,7 +161,7 @@ export const useRoomList = ({
       setRefreshing(false);
       isLoadingRef.current = false;
     }
-  }, [currentUser, loadRooms]);
+  }, [currentUser, loadRoomsPage]);
 
   const handleJoinRoom = useCallback(async (roomId) => {
     if (connectionStatus !== CONNECTION_STATUS.CONNECTED) {
@@ -169,8 +206,11 @@ export const useRoomList = ({
     setError,
     loading,
     refreshing,
+    loadingMore,
+    hasMore,
     joiningRoom,
     fetchRooms,
+    loadMoreRooms,
     refreshRooms,
     handleJoinRoom,
   };

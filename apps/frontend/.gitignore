@@ -1,0 +1,10 @@
+# 의존성
+node_modules/
+
+# Next.js 빌드 산출물
+.next/
+out/
+
+# 로컬/배포용 실제 환경변수 — .env.example, .env.production.example 은 템플릿이라 계속 추적됨
+.env*.local
+.env.production

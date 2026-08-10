@@ -2,6 +2,8 @@ package com.ktb.chatapp.service;
 
 import com.ktb.chatapp.model.Session;
 import com.ktb.chatapp.service.session.SessionStore;
+import com.ktb.chatapp.service.session.SessionStore.ValidateAndTouchResult;
+import com.ktb.chatapp.service.session.SessionStore.ValidationStatus;
 import java.time.Instant;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -15,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -77,13 +80,14 @@ class SessionServiceUnitTest {
         assertThat(missingUser.getError()).isEqualTo("INVALID_PARAMETERS");
         assertThat(missingSession.isValid()).isFalse();
         assertThat(missingSession.getError()).isEqualTo("INVALID_PARAMETERS");
-        verify(sessionStore, never()).findByUserId(anyString());
+        verify(sessionStore, never()).validateAndTouch(anyString(), anyString(), anyLong(), anyLong(), any());
     }
 
     @Test
     @DisplayName("세션 검증은 누락된 세션을 INVALID_SESSION으로 반환한다")
     void validateSession_MissingSession_ReturnsInvalidSession() {
-        when(sessionStore.findByUserId(USER_ID)).thenReturn(Optional.empty());
+        when(sessionStore.validateAndTouch(anyString(), anyString(), anyLong(), anyLong(), any()))
+                .thenReturn(new ValidateAndTouchResult(ValidationStatus.NOT_FOUND, null));
 
         SessionValidationResult result = sessionService.validateSession(USER_ID, SESSION_ID);
 
@@ -102,7 +106,8 @@ class SessionServiceUnitTest {
                 .lastActivity(Instant.now().minusSeconds(SessionService.SESSION_TTL_SEC + 10).toEpochMilli())
                 .expiresAt(Instant.now().minusSeconds(10))
                 .build();
-        when(sessionStore.findByUserId(USER_ID)).thenReturn(Optional.of(expiredSession));
+        when(sessionStore.validateAndTouch(anyString(), anyString(), anyLong(), anyLong(), any()))
+                .thenReturn(new ValidateAndTouchResult(ValidationStatus.EXPIRED, expiredSession));
 
         SessionValidationResult result = sessionService.validateSession(USER_ID, SESSION_ID);
 
@@ -115,7 +120,8 @@ class SessionServiceUnitTest {
     @Test
     @DisplayName("세션 검증 중 저장소 실패는 VALIDATION_ERROR로 반환한다")
     void validateSession_StoreFailure_ReturnsValidationError() {
-        when(sessionStore.findByUserId(USER_ID)).thenThrow(new IllegalStateException("store down"));
+        when(sessionStore.validateAndTouch(anyString(), anyString(), anyLong(), anyLong(), any()))
+                .thenThrow(new IllegalStateException("store down"));
 
         SessionValidationResult result = sessionService.validateSession(USER_ID, SESSION_ID);
 

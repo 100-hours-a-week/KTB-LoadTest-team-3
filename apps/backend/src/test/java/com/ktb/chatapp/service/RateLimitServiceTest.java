@@ -4,6 +4,10 @@ import com.ktb.chatapp.config.MongoTestContainer;
 import com.ktb.chatapp.repository.RateLimitRepository;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -130,5 +134,73 @@ class RateLimitServiceTest {
                 rateLimitService.checkRateLimit(clientId2, maxRequests, window);
         assertThat(result2.allowed()).isTrue();
         assertThat(result2.remaining()).isEqualTo(1);
+    }
+
+    @Test
+    @DisplayName("한도 초과 요청은 저장된 count를 증가시키지 않는다")
+    void checkRateLimit_DeniedRequest_DoesNotIncrementCount() {
+        int maxRequests = 3;
+        String clientId = "no-extra-increment";
+
+        for (int i = 0; i < maxRequests + 2; i++) {
+            rateLimitService.checkRateLimit(clientId, maxRequests, Duration.ofSeconds(60));
+        }
+
+        assertThat(rateLimitRepository.findAll()).singleElement()
+                .extracting(rateLimit -> rateLimit.getCount())
+                .isEqualTo(maxRequests);
+    }
+
+    @Test
+    @DisplayName("만료된 window는 count 1과 새 expiresAt으로 원자 reset된다")
+    void checkRateLimit_ExpiredWindow_ResetsCountAndExpiration() {
+        String clientId = "expired-window";
+        rateLimitService.checkRateLimit(clientId, 3, Duration.ofSeconds(60));
+        com.ktb.chatapp.model.RateLimit stored = rateLimitRepository.findAll().getFirst();
+        Instant oldExpiration = Instant.now().minusSeconds(1);
+        stored.setCount(3);
+        stored.setExpiresAt(oldExpiration);
+        rateLimitRepository.save(stored);
+
+        RateLimitCheckResult result = rateLimitService.checkRateLimit(clientId, 3, Duration.ofSeconds(60));
+        com.ktb.chatapp.model.RateLimit reset = rateLimitRepository.findById(stored.getId()).orElseThrow();
+
+        assertThat(result.allowed()).isTrue();
+        assertThat(result.remaining()).isEqualTo(2);
+        assertThat(reset.getCount()).isEqualTo(1);
+        assertThat(reset.getExpiresAt()).isAfter(oldExpiration);
+        assertThat(result.resetEpochSeconds()).isEqualTo(reset.getExpiresAt().getEpochSecond());
+    }
+
+    @Test
+    @DisplayName("동일 clientId 동시 요청은 한도까지만 허용되고 lost update가 없다")
+    void checkRateLimit_ConcurrentRequests_AreAtomic() throws Exception {
+        int maxRequests = 20;
+        int attempts = 80;
+        String clientId = "concurrent-client";
+        ExecutorService executor = Executors.newFixedThreadPool(16);
+        try {
+            List<Callable<RateLimitCheckResult>> tasks = java.util.stream.IntStream.range(0, attempts)
+                    .mapToObj(ignored -> (Callable<RateLimitCheckResult>) () ->
+                            rateLimitService.checkRateLimit(clientId, maxRequests, Duration.ofSeconds(60)))
+                    .toList();
+
+            long allowed = executor.invokeAll(tasks).stream()
+                    .map(future -> {
+                        try {
+                            return future.get();
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    })
+                    .filter(RateLimitCheckResult::allowed)
+                    .count();
+            com.ktb.chatapp.model.RateLimit stored = rateLimitRepository.findAll().getFirst();
+
+            assertThat(allowed).isEqualTo(maxRequests);
+            assertThat(stored.getCount()).isEqualTo(maxRequests);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }

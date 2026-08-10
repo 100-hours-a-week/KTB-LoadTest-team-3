@@ -5,3 +5,16 @@ uploads/*
 .project
 .factorypath
 .settings/
+
+# IntelliJ IDEA
+.idea/
+
+# Maven 빌드 산출물
+target/
+
+# Maven wrapper jar — wrapperUrl로 필요 시 내려받는 방식이라 커밋 대상 아님
+.mvn/wrapper/maven-wrapper.jar
+
+# 실제 시크릿(JWT_SECRET/ENCRYPTION_KEY 등)이 들어있는 로컬 설정 — .env.template만 커밋
+.env
+

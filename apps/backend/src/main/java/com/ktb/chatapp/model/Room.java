@@ -12,6 +12,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.redis.core.index.Indexed;
 
 @Data
 @Builder
@@ -33,6 +34,7 @@ public class Room {
     private String password;
 
     @CreatedDate
+    @Indexed // 방 목록 조회(GET /api/rooms) => 항상 createdAt 내림차순 페이지네이면 => 인덱스 적용
     private LocalDateTime createdAt;
 
     @Field("participantIds")

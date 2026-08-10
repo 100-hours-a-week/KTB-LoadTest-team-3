@@ -8,6 +8,7 @@ import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.mapping.Field;
+import org.springframework.data.redis.core.index.Indexed;
 
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -25,6 +26,8 @@ public class File {
     @Id
     private String id;
 
+    // 파일 다운로드-미리보기 요청마다 findByFilename 조회 => 인덱스
+    @Indexed
     private String filename;
 
     private String originalname;
