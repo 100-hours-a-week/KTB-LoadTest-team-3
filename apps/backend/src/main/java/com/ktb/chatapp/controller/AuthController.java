@@ -4,6 +4,7 @@ import com.ktb.chatapp.dto.*;
 import com.ktb.chatapp.event.SessionEndedEvent;
 import com.ktb.chatapp.model.User;
 import com.ktb.chatapp.repository.UserRepository;
+import com.ktb.chatapp.security.CustomUserDetails;
 import com.ktb.chatapp.service.JwtService;
 import com.ktb.chatapp.service.SessionCreationResult;
 import com.ktb.chatapp.service.SessionMetadata;
@@ -164,21 +165,19 @@ public class AuthController {
         
         try {
             // Authenticate user
-            User user = userRepository.findByEmail(loginRequest.getEmail().toLowerCase())
-                    .orElseThrow(() -> new UsernameNotFoundException("User not found"));
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(
-                            user.getEmail(),
+                            loginRequest.getEmail().toLowerCase(),
                             loginRequest.getPassword()
                     )
             );
 
-            SecurityContextHolder.getContext().setAuthentication(authentication);
-            
-            // 단일 세션 정책을 위해 기존 세션 제거
-            sessionService.removeAllUserSessions(user.getId());
+            CustomUserDetails principal = (CustomUserDetails) authentication.getPrincipal();
+            User user = principal.getUser();
 
-            // Create new session
+            SecurityContextHolder.getContext().setAuthentication(authentication);
+
+            // createSession owns the single-session policy: delete existing, then save new.
             SessionMetadata metadata = new SessionMetadata(
                     request.getHeader("User-Agent"),
                     getClientIpAddress(request),
