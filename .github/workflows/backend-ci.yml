@@ -1,0 +1,115 @@
+name: Backend CI
+
+# main 대상 PR에서는 검증만 하고, main 반영 후에는 이미지까지 배포한다.
+on:
+  pull_request:
+    branches:
+      - main
+    # 백엔드나 워크플로우가 변경된 경우에만 실행
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/backend-ci.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/backend/**"
+      - ".github/workflows/backend-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  # 워크플로우는 소스 조회만 필요하므로 최소 권한만 부여
+  contents: read
+
+# 같은 브랜치에 새 커밋이 들어오면 진행 중인 이전 실행을 취소
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # 백엔드 pom.xml과 Dockerfile에서 사용하는 Java 버전에 맞춤
+  JAVA_VERSION: "25"
+  # 팀 저장소에는 Secret이 없을 수 있으므로 Docker Hub 계정 등록 여부를 확인
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  # PR처럼 Docker Hub Secret을 사용할 수 없는 경우에는 local 이미지명 사용
+  BACKEND_IMAGE: ${{ secrets.DOCKERHUB_USERNAME || 'local' }}/ktb-bootcampchat
+
+jobs:
+  # 첫 번째 Job: Maven 테스트로 코드가 정상 동작하는지 확인
+  test:
+    name: Test backend
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: apps/backend
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+          # pom.xml이 같으면 이전에 받은 Maven 의존성을 재사용
+          cache: maven
+          cache-dependency-path: apps/backend/pom.xml
+
+      - name: Grant Maven Wrapper permission
+        run: chmod +x mvnw
+
+      - name: Run backend tests
+        # CI 로그가 지나치게 길어지지 않도록 다운로드 진행률은 출력하지 않음
+        run: ./mvnw --batch-mode --no-transfer-progress test
+
+  # 두 번째 Job: 테스트를 통과한 소스로 Docker 이미지 생성
+  build:
+    name: Build backend image
+    # 테스트에 실패한 이미지는 빌드하지 않음
+    needs: test
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        # Docker 레이어 캐시와 플랫폼 지정 빌드를 사용하기 위해 Buildx 구성
+        uses: docker/setup-buildx-action@v3
+
+      # PR에서는 빌드만 확인하고 main 반영 시 Docker Hub에 업로드
+      - name: Log in to Docker Hub
+        if: >-
+          github.event_name == 'push' &&
+          github.ref == 'refs/heads/main' &&
+          env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Generate image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.BACKEND_IMAGE }}
+          # 커밋별 버전 태그를 남겨 롤백할 수 있게 하고 main에는 latest도 추가
+          tags: |
+            type=sha,prefix=backend-,format=long
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and optionally push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: apps/backend
+          file: apps/backend/Dockerfile
+          # 배포 대상 EC2의 CPU 아키텍처에 맞춰 이미지 생성
+          platforms: linux/amd64
+          # Secret이 등록된 저장소의 main에서만 실제 이미지를 push
+          push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && env.DOCKERHUB_USERNAME != '' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # 백엔드 전용 캐시 범위를 사용하여 이후 이미지 빌드 시간을 단축
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,mode=max,scope=backend
