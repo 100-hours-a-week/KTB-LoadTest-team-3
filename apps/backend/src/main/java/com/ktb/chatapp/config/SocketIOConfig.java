@@ -46,7 +46,7 @@ public class SocketIOConfig {
         var socketConfig = new SocketConfig();
         socketConfig.setReuseAddress(true);
         socketConfig.setTcpNoDelay(false);
-        socketConfig.setAcceptBackLog(10);
+        socketConfig.setAcceptBackLog(512);
         socketConfig.setTcpSendBufferSize(4096);
         socketConfig.setTcpReceiveBufferSize(4096);
         config.setSocketConfig(socketConfig);
