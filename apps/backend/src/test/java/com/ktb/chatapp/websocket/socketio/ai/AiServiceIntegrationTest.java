@@ -1,6 +1,7 @@
 package com.ktb.chatapp.websocket.socketio.ai;
 
 import com.ktb.chatapp.config.MongoTestContainer;
+import com.ktb.chatapp.config.RedisTestContainer;
 import com.ktb.chatapp.websocket.socketio.handler.StreamingSession;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("AiService 통합 테스트 (실제 API 호출)")
 @Tag("openai-live")
 @TestPropertySource(properties = "socketio.enabled=true")
-@Import(MongoTestContainer.class)
+@Import({MongoTestContainer.class, RedisTestContainer.class})
 @Disabled("실제 AI 호출")
 class AiServiceIntegrationTest {
 

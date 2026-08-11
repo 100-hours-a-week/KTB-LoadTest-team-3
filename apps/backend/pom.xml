@@ -215,6 +215,7 @@
                                 <exclude>**/RateLimitServiceTest.java</exclude>
                                 <exclude>**/SessionServiceTest.java</exclude>
                                 <exclude>**/SocketIOConfigTest.java</exclude>
+                                <exclude>**/SocketIOConfigRedisTest.java</exclude>
                             </excludes>
                         </configuration>
                     </plugin>
@@ -237,6 +238,7 @@
                                 <include>**/RateLimitServiceTest.java</include>
                                 <include>**/SessionServiceTest.java</include>
                                 <include>**/SocketIOConfigTest.java</include>
+                                <exclude>**/SocketIOConfigRedisTest.java</exclude>
                             </includes>
                         </configuration>
                     </plugin>
