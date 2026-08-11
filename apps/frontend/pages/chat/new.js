@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { ErrorCircleIcon } from '@vapor-ui/icons';
 import {
@@ -183,16 +182,4 @@ function NewChatRoom() {
   );
 }
 
-const ClientOnlyNewChatRoom = dynamic(
-  () => Promise.resolve(NewChatRoom),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Loading...</div>
-      </div>
-    ),
-  }
-);
-
-export default ClientOnlyNewChatRoom;
+export default NewChatRoom;

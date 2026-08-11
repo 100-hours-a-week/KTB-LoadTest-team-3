@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import dynamic from 'next/dynamic';
 import { ErrorCircleIcon, CheckCircleIcon } from '@vapor-ui/icons';
 import { Button, Box, VStack, HStack, Field, Form, Text, TextInput, Callout } from '@vapor-ui/core';
 import authService from '@/services/authService';
@@ -229,16 +228,4 @@ const Profile = () => {
   );
 };
 
-const ClientOnlyProfile = dynamic(
-  () => Promise.resolve(withAuth(Profile)),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Loading...</div>
-      </div>
-    ),
-  }
-);
-
-export default ClientOnlyProfile;
+export default withAuth(Profile);

@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { ErrorCircleIcon, CheckCircleIcon } from '@vapor-ui/icons';
 import {
@@ -222,16 +221,4 @@ const Register = () => {
   );
 };
 
-const ClientOnlyRegister = dynamic(
-  () => Promise.resolve(withoutAuth(Register)),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="min-h-screen flex items-center justify-center">
-        <div>Loading...</div>
-      </div>
-    ),
-  }
-);
-
-export default ClientOnlyRegister;
+export default withoutAuth(Register);

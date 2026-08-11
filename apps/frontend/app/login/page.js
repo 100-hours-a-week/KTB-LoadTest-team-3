@@ -1,8 +1,17 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-export default async function LoginRedirectPage({ searchParams }) {
-  const params = new URLSearchParams(await searchParams);
-  const queryString = params.toString();
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-  redirect(queryString ? `/?${queryString}` : '/');
-}
+const LoginRedirectPage = () => {
+  const router = useRouter();
+
+  useEffect(() => {
+    const queryString = window.location.search;
+    router.replace(queryString ? `/${queryString}` : '/');
+  }, [router]);
+
+  return null;
+};
+
+export default LoginRedirectPage;
