@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { usePathname, useRouter } from 'next/navigation';
 import ChatHeader from '@/components/ChatHeader';
 import { useAuth } from '@/contexts/AuthContext';
@@ -21,7 +22,7 @@ const LoadingState = () => (
   </div>
 );
 
-export default function ChatPage() {
+function ChatPageContent() {
   const router = useRouter();
   const pathname = usePathname();
   const { isAuthenticated, isLoading } = useAuth();
@@ -45,3 +46,13 @@ export default function ChatPage() {
     </>
   );
 }
+
+const ClientOnlyChatPage = dynamic(
+  () => Promise.resolve(ChatPageContent),
+  {
+    ssr: false,
+    loading: LoadingState,
+  }
+);
+
+export default ClientOnlyChatPage;
