@@ -42,7 +42,7 @@ public class RoomLeaveHandler {
     private final UserRepository userRepository;
     private final UserRooms userRooms;
     private final MessageResponseMapper messageResponseMapper;
-    
+
     @OnEvent(LEAVE_ROOM)
     public void handleLeaveRoom(SocketIOClient client, String roomId) {
         try {
@@ -61,21 +61,21 @@ public class RoomLeaveHandler {
 
             User user = userRepository.findById(userId).orElse(null);
             Room room = roomRepository.findById(roomId).orElse(null);
-            
+
             if (user == null || room == null) {
                 log.warn("Room {} not found or user {} has no access", roomId, userId);
                 return;
             }
-            
+
             roomRepository.removeParticipant(roomId, userId);
-            
+
             client.leaveRoom(roomId);
             userRooms.remove(userId, roomId);
-            
+
             log.info("User {} left room {}", userName, room.getName());
-            
+
             log.debug("Leave room cleanup - roomId: {}, userId: {}", roomId, userId);
-            
+
             sendSystemMessage(roomId, userName + "님이 퇴장하였습니다.");
             broadcastParticipantList(roomId);
 
@@ -84,7 +84,7 @@ public class RoomLeaveHandler {
             client.sendEvent(ERROR, Map.of("message", "채팅방 퇴장 중 오류가 발생했습니다."));
         }
     }
-    
+
     private void sendSystemMessage(String roomId, String content) {
         try {
             Message systemMessage = new Message();
@@ -107,26 +107,23 @@ public class RoomLeaveHandler {
             log.error("Error sending system message", e);
         }
     }
-    
+
     private void broadcastParticipantList(String roomId) {
         Optional<Room> roomOpt = roomRepository.findById(roomId);
         if (roomOpt.isEmpty()) {
             return;
         }
-        
-        var participantList = roomOpt.get()
-                .getParticipantIds()
+
+        // 참가자 수만큼 findById 를 반복하지 않고 한 번에 배치 조회
+        var participantList = userRepository.findAllById(roomOpt.get().getParticipantIds())
                 .stream()
-                .map(userRepository::findById)
-                .filter(Optional::isPresent)
-                .map(Optional::get)
                 .map(UserResponse::from)
                 .toList();
-        
+
         if (participantList.isEmpty()) {
             return;
         }
-        
+
         socketIOServer.getRoomOperations(roomId)
                 .sendEvent(PARTICIPANTS_UPDATE, participantList);
     }

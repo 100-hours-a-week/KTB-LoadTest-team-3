@@ -250,9 +250,6 @@ export const useRoomHandling = ({
     [socketRef, mountedRef, userRooms]
   );
 
-  // 재연결 뒤 필요한 것은 방 참가 상태 복구뿐이다. socket.io 가 같은 소켓을
-  // 되살렸으므로 방 이벤트 구독도 그대로 살아 있다 — 여기서 소켓을 새로 만들면
-  // 살아 있는 연결을 버리는 셈이 된다.
   const rejoinRoom = useCallback(async () => {
     const socket = socketRef.current;
     if (!roomId || !mountedRef.current || !socket?.connected) {
@@ -314,8 +311,6 @@ export const useRoomHandling = ({
         return await loadMessagesWithRetry();
       } catch (error) {
         if (!socketRef.current?.connected) {
-          // setupSocket 은 낡은 소켓을 버리고 새 소켓을 반환한다. 받아서 걸어주지
-          // 않으면 ref 가 비어 있어 재시도가 곧바로 'Socket not connected' 로 죽는다.
           attachSocket(await setupSocket());
           return loadMessagesWithRetry();
         }
@@ -434,13 +429,6 @@ export const useRoomHandling = ({
       if (roomEventsUnsubscribeRef.current) {
         roomEventsUnsubscribeRef.current();
         roomEventsUnsubscribeRef.current = null;
-      }
-
-      // 언마운트 경로는 attachSocket 을 쓰지 않는다. 사라지는 컴포넌트에
-       // 소켓 교체를 통지할 구독자가 없다.
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
       }
     };
   }, []);

@@ -30,8 +30,10 @@ const renderRoomsSocket = (socket, overrides = {}) => {
 
 const createSocket = () => ({
   on: vi.fn(),
+  off: vi.fn(),
   emit: vi.fn(),
   disconnect: vi.fn(),
+  connected: true,
 });
 
 const handlerFor = (socket, event) =>
@@ -45,8 +47,10 @@ describe('useRoomsSocket', () => {
   it('does not emit joinRoomList because the server joins room-list on connect', async () => {
     const socket = {
       on: vi.fn(),
+      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
+      connected: true,
     };
 
     renderRoomsSocket(socket);
@@ -64,8 +68,10 @@ describe('useRoomsSocket', () => {
   it('does not register roomDeleted without a server-side room delete event', async () => {
     const socket = {
       on: vi.fn(),
+      off: vi.fn(),
       emit: vi.fn(),
       disconnect: vi.fn(),
+      connected: true,
     };
 
     renderRoomsSocket(socket);

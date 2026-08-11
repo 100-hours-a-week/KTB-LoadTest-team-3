@@ -13,6 +13,7 @@ export const useRoomsSocket = ({
   setRooms,
 }) => {
   const socketRef = useRef(null);
+  const handlersRef = useRef(null);
 
   useEffect(() => {
     if (!currentUser?.token) return;
@@ -71,9 +72,19 @@ export const useRoomsSocket = ({
           },
         };
 
+        handlersRef.current = handlers;
+
         Object.entries(handlers).forEach(([event, handler]) => {
           socket.on(event, handler);
         });
+
+        // 방 화면에서 이미 연결돼 있던 소켓을 그대로 이어받는 경우 'connect'
+        // 이벤트는 다시 발생하지 않는다 — 현재 연결 상태를 즉시 반영한다.
+        setConnectionStatus(
+          socket.connected
+            ? CONNECTION_STATUS.CONNECTED
+            : CONNECTION_STATUS.DISCONNECTED
+        );
       } catch (error) {
         if (!isSubscribed) return;
 
@@ -92,10 +103,14 @@ export const useRoomsSocket = ({
 
     return () => {
       isSubscribed = false;
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
+
+      if (socketRef.current && handlersRef.current) {
+        Object.entries(handlersRef.current).forEach(([event, handler]) => {
+          socketRef.current.off(event, handler);
+        });
       }
+      socketRef.current = null;
+      handlersRef.current = null;
     };
   }, [currentUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
