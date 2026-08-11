@@ -28,7 +28,9 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.replace(`/?redirect=${pathname}`);
+      const redirect = encodeURIComponent(pathname);
+      window.location.replace(`/?redirect=${redirect}`);
+      // router.replace(`/?redirect=${pathname}`);
     }
   }, [isAuthenticated, isLoading, pathname, router]);
 
