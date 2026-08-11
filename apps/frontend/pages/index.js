@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { useRouter } from 'next/router';
 import { ErrorCircleIcon } from '@vapor-ui/icons';
 import { withoutAuth, useAuth } from '@/contexts/AuthContext';
@@ -23,7 +24,7 @@ const Login = () => {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState({
-    checking: typeof window !== 'undefined', // 클라이언트에서만 체크
+    checking: true,
     connected: false
   });
   // 서버 생존 확인 결과는 로그인 시도 결과와 섞지 않는다.
@@ -34,11 +35,6 @@ const Login = () => {
 
   // 서버 연결 상태 확인
   useEffect(() => {
-    // 클라이언트 사이드에서만 실행되도록 보장
-    if (typeof window === 'undefined') {
-      return;
-    }
-
     const checkServerConnection = async () => {
       try {
         await authService.checkServerConnection();
@@ -57,10 +53,7 @@ const Login = () => {
       }
     };
 
-    // 약간의 지연을 두어 hydration 완료 후 실행
-    const timer = setTimeout(() => {
-      checkServerConnection();
-    }, 100);
+    checkServerConnection();
 
     // fallback으로 4초 후에는 무조건 체크 완료로 처리 (authService timeout 3초 + 여유시간)
     const fallbackTimer = setTimeout(() => {
@@ -68,7 +61,6 @@ const Login = () => {
     }, 4000);
 
     return () => {
-      clearTimeout(timer);
       clearTimeout(fallbackTimer);
     };
   }, []);
@@ -248,4 +240,16 @@ const Login = () => {
   );
 };
 
-export default withoutAuth(Login);
+const ClientOnlyLogin = dynamic(
+  () => Promise.resolve(withoutAuth(Login)),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-screen flex items-center justify-center">
+        <div>Loading...</div>
+      </div>
+    ),
+  }
+);
+
+export default ClientOnlyLogin;
