@@ -1,22 +1,22 @@
 package com.ktb.chatapp.websocket.socketio;
 
 import java.util.Optional;
-import org.redisson.api.RMap;
+import org.redisson.api.RBucket;
 import org.redisson.api.RedissonClient;
 
 public class RedisChatDataStore implements ChatDataStore {
 
-    private static final String MAP_NAME = "socketio:chat-data";
+    private static final String KEY_PREFIX = "socketio:chat-data:";
 
-    private final RMap<String, Object> storage;
+    private final RedissonClient redissonClient;
 
     public RedisChatDataStore(RedissonClient redissonClient) {
-        this.storage = redissonClient.getMap(MAP_NAME);
+        this.redissonClient = redissonClient;
     }
 
     @Override
     public <T> Optional<T> get(String key, Class<T> type) {
-        Object value = storage.get(key);
+        Object value = bucket(key).get();
         if (value == null) {
             return Optional.empty();
         }
@@ -30,16 +30,24 @@ public class RedisChatDataStore implements ChatDataStore {
 
     @Override
     public void set(String key, Object value) {
-        storage.put(key, value);
+        bucket(key).set(value);
     }
 
     @Override
     public void delete(String key) {
-        storage.remove(key);
+        bucket(key).delete();
     }
 
     @Override
     public int size() {
-        return storage.size();
+        int count = 0;
+        for (String ignored : redissonClient.getKeys().getKeysByPattern(KEY_PREFIX + "*")) {
+            count++;
+        }
+        return count;
+    }
+
+    private RBucket<Object> bucket(String key) {
+        return redissonClient.getBucket(KEY_PREFIX + key);
     }
 }
