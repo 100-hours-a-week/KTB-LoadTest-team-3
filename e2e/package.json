@@ -5,6 +5,7 @@
   "scripts": {
     "test": "playwright test --grep @smoke",
     "test:full": "playwright test",
+    "test:journey": "playwright test tests/full-journey.spec.js",
     "test:ui": "playwright test --ui"
   },
   "devDependencies": {

@@ -179,7 +179,7 @@ export const useRoomList = ({
       const response = await axiosInstance.post(`/api/rooms/${roomId}/join`, {});
 
       if (response.data.success) {
-        router.push(`/chat/${roomId}`);
+        router.push(`/chat/room?id=${encodeURIComponent(roomId)}`);
       }
     } catch (error) {
       let errorMessage = '입장에 실패했습니다.';

@@ -1,7 +1,7 @@
-import { useParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 
 export const useRoomId = () => {
-  return useParams()?.room;
+  return useSearchParams().get('id');
 };
 
 export default useRoomId;
