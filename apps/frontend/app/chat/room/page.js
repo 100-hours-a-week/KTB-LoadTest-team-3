@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { Suspense, useEffect } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import ChatHeader from '@/components/ChatHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import ChatRoomView from '@/features/chat/room/ChatRoomView';
@@ -22,19 +22,21 @@ const LoadingState = () => (
   </div>
 );
 
-export default function ChatRoomPage() {
+function ChatRoomContent() {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const { isAuthenticated, isLoading } = useAuth();
   const roomId = useRoomId();
+  const asPath = searchParams.size > 0
+    ? `${pathname}?${searchParams.toString()}`
+    : pathname;
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      // const redirect = encodeURIComponent(pathname);
-      // window.location.replace(`/?redirect=${redirect}`);
-      router.replace(`/?redirect=${pathname}`);
+      router.replace(`/?redirect=${encodeURIComponent(asPath)}`);
     }
-  }, [isAuthenticated, isLoading, pathname, router]);
+  }, [asPath, isAuthenticated, isLoading, router]);
 
   if (isLoading || !isAuthenticated) {
     return <LoadingState />;
@@ -47,8 +49,16 @@ export default function ChatRoomPage() {
         roomId={roomId}
         onNavigate={router.push}
         onReplace={router.replace}
-        asPath={pathname}
+        asPath={asPath}
       />
     </>
+  );
+}
+
+export default function ChatRoomPage() {
+  return (
+    <Suspense fallback={<LoadingState />}>
+      <ChatRoomContent />
+    </Suspense>
   );
 }

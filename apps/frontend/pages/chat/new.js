@@ -31,7 +31,7 @@ function NewChatRoom() {
     try {
       await api.post(`/api/rooms/${roomId}/join`, { password });
 
-      router.push(`/chat/${roomId}`);
+      router.push(`/chat/room?id=${encodeURIComponent(roomId)}`);
     } catch (error) {
       console.error('Room join error:', error);
       throw error;
